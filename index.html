@@ -1,0 +1,1131 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>[TEST] GoldSrc Timeline</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="description" content="Every Half-Life engine build, falling through time: protocol, exe version, and the cvars and commands each build added, removed or changed.">
+<style>
+/* Layout: a single falling column of cards. Each card names where its build came from
+   (CD, WON, Steam2, SteamPipe) in its top right corner.
+   Speedrun packs live on their own tab: they are assembled from several releases. */
+:root {
+  /* Steam 2003 olive: panels #4c5844, desktop #3e4637, inset wells #2c342c */
+  --bg: #3e4637; --panel: #4c5844; --panel-2: #44503d; --fg: #dde3d4; --muted: #b3bca8; --line: #2a3125; --soft: #3a4333;
+  --hi: #889180; --lo: #232a1f; --well: #2c342c; --row-a: #2c342c; --row-b: #242c24; --titlebar: #353d2f;
+  --accent: #c4b550; --accent-soft: #5a5a30;
+  --add: #9be26a; --del: #f08a78; --chg: #e6d36a;
+  --add-bg: #2f4a26; --del-bg: #5a2f28; --chg-bg: #5a5628; --total-bg: #2f3829;
+  --l-pre: #bba9ea; --l-nettest: #a3b7da; --l-won: #e3a577; --l-steam2: #84d8d0; --l-beta: #82b4f2; --l-public: var(--l-beta); --l-legacy: var(--l-beta);   /* SteamPipe has one colour; beta and legacy are modifiers of it and never get their own */ --l-pack: #e892cd;
+  --f-display: "Trebuchet MS", Tahoma, Verdana, sans-serif;
+  --f-body: Tahoma, Verdana, "Segoe UI", sans-serif;
+  --f-mono: "Lucida Console", Consolas, "Courier New", monospace;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.5 var(--f-body); }
+.wrap { max-width: 1000px; margin: 0 auto; padding-block: 0 64px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); }
+code, .mono { font-family: var(--f-mono); font-size: 0.86em; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 0; }
+
+header.top { padding-block: 28px 14px; display: grid; gap: 10px; }
+.eyebrow { font: 600 12px/1 var(--f-body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+h1 { font: 700 clamp(34px, 6vw, 54px)/0.95 var(--f-display); margin: 0; letter-spacing: .01em; text-wrap: balance; }
+h1 .lambda { color: var(--accent); }
+.lede { margin: 0; color: var(--muted); max-width: 68ch; }
+.stats { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 13px; color: var(--muted); }
+.stats b { color: var(--fg); font-variant-numeric: tabular-nums; }
+
+.views { display: flex; gap: 4px; border-bottom: 1px solid var(--line); margin-top: 6px; }
+.views button { background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 12px; cursor: pointer;
+  font: 600 18px var(--f-display); letter-spacing: .03em; color: var(--muted); margin-bottom: -1px; }
+.views button[aria-selected="true"] { color: var(--fg); border-bottom-color: var(--accent); }
+.views .n { font: 12px var(--f-mono); color: var(--muted); margin-left: 4px; }
+
+.controls { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; background: var(--bg);
+  padding-block: 10px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.crow { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+body::before { content: ""; position: fixed; inset: 0 0 auto; height: env(safe-area-inset-top, 0px); z-index: 10; background: var(--bg); }
+.search { flex: 1 1 260px; min-width: 0; display: flex; align-items: center; gap: 8px; background: var(--panel);
+  border: 1px solid var(--line); border-radius: 0; padding: 6px 10px; }
+.search input { border: 0; outline: 0; background: transparent; color: var(--fg); font: 14px var(--f-mono); width: 100%; min-width: 0; }
+.toggle { display: inline-flex; gap: 6px; align-items: center; font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
+.toggle input { accent-color: var(--accent); }
+.toggle.off { opacity: .5; cursor: default; }
+.toggle b { font: 600 12px var(--f-mono); color: var(--fg); }
+.legend { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12.5px; color: var(--muted); padding-block: 10px 4px; }
+.legend button { background: none; border: 0; padding: 2px 0; display: inline-flex; gap: 6px; align-items: center; cursor: pointer; color: var(--muted); }
+.legend button[aria-pressed="false"] { opacity: .4; text-decoration: line-through; }
+.dot { width: 10px; height: 10px; border-radius: 0; background: var(--c); flex: none; }
+.hint { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; max-width: 80ch; }
+
+/* timeline */
+.tl { margin-top: 8px; }
+.ms { display: flex; align-items: center; justify-content: center; gap: 14px; margin-block: 5px; padding: 12px 14px;
+  border: 1px solid var(--accent); border-radius: 0; background: var(--accent-soft); }
+.ms .fw { width: 44px; height: 44px; flex: none; }
+.ms-t { display: grid; text-align: center; gap: 2px; min-width: 0; }
+.ms-t b { font: 700 26px/1.1 var(--f-display); letter-spacing: .03em; text-wrap: balance; }
+.ms-t span { font-size: 14.5px; color: var(--muted); }
+.rail.msr::after { background: var(--accent); }
+.also { margin-top: 4px; font-size: 12px; color: var(--muted); overflow-wrap: anywhere; }
+.also b { font-weight: 600; color: var(--fg); }
+.also .ac { font: inherit; color: var(--accent); background: none; border: 0; border-bottom: 1px dotted var(--accent); padding: 0; margin: 0 2px; cursor: pointer; }
+.alsoh { margin-top: 8px; }
+.alsoh summary { cursor: pointer; font: 600 12.5px var(--f-body); color: var(--muted); }
+.later { display: flex; align-items: center; justify-content: center; gap: 10px; font: 12px var(--f-mono); color: var(--muted); }
+.later::before, .later::after { content: ""; flex: 0 1 60px; height: 1px; background: var(--line); }
+.games { display: flex; flex-wrap: wrap; gap: 6px; }
+.games a { font: 600 13px var(--f-body); padding: 5px 12px; border-radius: 0; border: 1px solid var(--line); color: var(--muted); text-decoration: none; }
+.games a:hover { border-color: var(--accent); color: var(--fg); }
+.games a.on { background: var(--accent); border-color: var(--accent); color: var(--bg); }
+.year { display: flex; align-items: center; gap: 10px; padding-block: 18px 6px; font: 600 22px/1 var(--f-display); color: var(--muted); letter-spacing: .04em; }
+.year::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+
+.card { margin-block: 5px; background: var(--panel); border: 1px solid var(--line); border-radius: 0; padding: 8px 12px; min-width: 0; }
+.card.quiet { background: transparent; border-style: dashed; }
+.card.ghost { background: transparent; border-style: dashed; color: var(--muted); }
+.card.hit { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.l1 { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; }
+.pname { font: 600 14px var(--f-body); }
+.date { font: 600 13px var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+.title { font: 700 20px/1.1 var(--f-display); letter-spacing: .01em; }
+.kv { font: 12.5px var(--f-mono); color: var(--muted); white-space: nowrap; }
+.kv b { color: var(--fg); font-weight: 600; }
+.l1 .end { margin-left: auto; display: flex; gap: 5px; align-self: center; }
+.pt { font: 600 11px/1 var(--f-body); letter-spacing: .07em; text-transform: uppercase; padding: 4px 7px; border-radius: 0;
+  border: 1px solid var(--c); color: var(--c); white-space: nowrap; }
+.pt.q { background: var(--c); color: var(--panel); }
+.l3 { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 4px 12px; }
+.l3 .body { flex: 1 1 260px; min-width: 0; }
+.l3 .end { margin-left: auto; display: flex; gap: 6px; padding-top: 4px; }
+.btn { border: 1px solid var(--line); background: var(--soft); border-radius: 0; padding: 2px 9px; font-size: 12.5px; cursor: pointer; }
+.btn:hover, .btn[aria-expanded="true"] { border-color: var(--accent); }
+.l2 { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 4px; align-items: baseline; }
+.tg { background: none; border: 0; padding: 0; cursor: pointer; display: inline-flex; gap: 6px; align-items: baseline;
+  font: 600 11.5px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.tg .arr { display: inline-block; transition: transform .12s; font-size: 10px; width: 1ch; }
+.tg[aria-expanded="true"] .arr { transform: rotate(90deg); }
+.tg:hover { color: var(--fg); }
+.tg[disabled] { cursor: default; } .tg[disabled]:hover { color: var(--muted); }
+.tg[disabled] .arr { opacity: .3; }
+.l2.stack { flex-direction: column; align-items: stretch; gap: 2px; }
+/* metric rows: label, total, arrow, then Added / Changed / Removed in fixed columns so builds compare vertically */
+.l2.stack .tg { display: grid; grid-template-columns: 4ch 6ch 1.4ch repeat(3, 7.4ch); gap: 0 8px; align-items: center; width: max-content; max-width: 100%;
+  padding: 2px 4px; margin-inline: -4px; border-radius: 0; }
+.l2.stack .tg:not([disabled]):hover { background: var(--soft); }
+.l2.stack .tg .tot { min-width: 0; }
+.colhead { display: grid; grid-template-columns: 4ch 6ch 1.4ch repeat(3, 7.4ch); gap: 0 8px; font: 600 9.5px/1 var(--f-mono); letter-spacing: 0;
+  text-transform: uppercase; color: var(--muted); margin-bottom: 1px; padding-inline: 0; }
+.colhead span { text-align: center; } .colhead .a { grid-column: 4; color: var(--add); } .colhead .c { color: var(--chg); } .colhead .r { color: var(--del); }
+.mc { text-align: center; display: inline-block; }
+.mc.zero { color: var(--muted); opacity: .45; background: none; padding-inline: 0; font-weight: 400; }
+.tg .lbl { font: 600 12px var(--f-mono); letter-spacing: .04em; }
+.tg .tot { min-width: 5ch; text-align: right; }
+.tot, .n-a, .n-r, .n-c { font: 600 12px/1 var(--f-mono); letter-spacing: 0; text-transform: none;
+  padding: 3px 6px; border-radius: 0; font-variant-numeric: tabular-nums; }
+.tot { background: var(--total-bg); color: var(--fg); }
+.n-a { background: var(--add-bg); color: var(--add); } .n-r { background: var(--del-bg); color: var(--del); } .n-c { background: var(--chg-bg); color: var(--chg); }
+.sep { width: 1px; align-self: stretch; background: var(--line); margin-inline: 2px; }
+.nochange { font-size: 12.5px; color: var(--muted); }
+.track { font: 12.5px var(--f-mono); margin-top: 4px; color: var(--muted); }
+.track b { color: var(--accent); }
+.box { margin-top: 8px; }
+.box ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.box ul.grid { display: grid; grid-template-columns: 1.4ch minmax(0, max-content) max-content 1.6ch max-content 1fr; column-gap: 8px; align-items: baseline; }
+.box ul.grid li { display: contents; }
+.box ul.grid li > span { min-width: 0; }
+.box ul.grid .origin { margin-left: 0; justify-self: end; }
+.box ul.grid .arrow { text-align: center; }
+.box li { font: 13px/1.45 var(--f-mono); display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: baseline; overflow-wrap: anywhere; }
+.box li .nm { min-width: 0; }
+.box li .vbox { padding: 0 5px; border: 1px solid var(--line); border-radius: 0; background: var(--soft); color: var(--fg); font-variant-numeric: tabular-nums; }
+.box li .origin { margin-left: auto; min-width: 8ch; text-align: center; }   /* one right-hand column */
+.l2.stack .box { width: 100%; margin: 2px 0 6px; }
+.box li .sign { font-weight: 700; width: 1ch; }
+.box li.a .sign { color: var(--add); } .box li.r .sign { color: var(--del); } .box li.c .sign { color: var(--chg); }
+.box li .val { color: var(--muted); }
+.box .fgrp { font: 600 10.5px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 6px 0 2px; }
+.box details summary { cursor: pointer; font: 600 10.5px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 6px 0 2px; }
+.box details summary .n-a, .box details summary .n-r, .box details summary .n-c { margin-left: 4px; }
+.box .fnote { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+.origin { font: 600 10.5px var(--f-body); letter-spacing: .06em; text-transform: uppercase; padding: 0 5px; border-radius: 0; border: 1px solid var(--line); color: var(--muted); }
+.origin.eng { color: var(--accent); border-color: var(--accent); }
+.src { margin-top: 8px; padding: 8px 10px; border-radius: 0; background: var(--soft); font-size: 13px; display: grid; gap: 3px; }
+.src .get { font: 12.5px var(--f-mono); overflow-wrap: anywhere; }
+.src .get::before { content: "get: "; color: var(--muted); }
+.src .vs { color: var(--muted); }
+.howto { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+.howto h4 { font: 600 10.5px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); margin: 0 0 6px; }
+.howto ol { margin: 0; padding-left: 20px; display: grid; gap: 8px; }
+.howto li { font-size: 13px; }
+.howto .code { position: relative; margin-top: 4px; }
+.howto pre { margin: 0; padding: 7px 56px 7px 9px; border-radius: 0; background: var(--panel); border: 1px solid var(--line); font: 12px var(--f-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+.howto .cp { position: absolute; top: 4px; right: 4px; font: 600 11px var(--f-body); padding: 2px 7px; border-radius: 0; border: 1px solid var(--line); background: var(--soft); color: var(--muted); cursor: pointer; }
+.howto .cp:hover { color: var(--text); }
+.howto .dtab { margin-top: 6px; border-collapse: collapse; font-size: 12.5px; width: 100%; }
+.howto .dtab th { text-align: left; font: 600 10.5px var(--f-body); letter-spacing: .06em; text-transform: uppercase; color: var(--muted); padding: 3px 10px 3px 0; border-bottom: 1px solid var(--line); }
+.howto .dtab td { padding: 3px 10px 3px 0; font-family: var(--f-mono); overflow-wrap: anywhere; vertical-align: top; }
+.howto a { color: var(--accent); }
+.howto .tested { color: var(--muted); font-size: 12.5px; margin-top: 8px; }
+.made { margin-top: 6px; display: grid; grid-template-columns: max-content max-content minmax(0, 1fr); gap: 2px 12px; font: 12.5px var(--f-mono); }
+.made .w { color: var(--muted); }
+.made .w.miss { font-style: italic; }
+
+/* drawer */
+.scrim { position: fixed; inset: 0; background: rgb(0 0 0 / .35); z-index: 20; }
+.drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(560px, 100%); z-index: 21; background: var(--panel);
+  border-left: 1px solid var(--line); display: flex; flex-direction: column;
+  padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.drawer header { padding: 16px 18px 10px; border-bottom: 1px solid var(--line); display: grid; gap: 8px; }
+.drawer h2 { margin: 0; font: 700 26px/1 var(--f-display); padding-right: 70px; }
+.drawer .close { position: absolute; top: calc(env(safe-area-inset-top, 0px) + 14px); right: calc(env(safe-area-inset-right, 0px) + 14px); }
+.files { display: grid; grid-template-columns: auto 1fr; gap: 2px 12px; font: 12.5px var(--f-mono); color: var(--muted); }
+.files b { color: var(--fg); font-weight: 600; }
+.tabs { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.tabs .btn { padding: 4px 10px; font-size: 13px; }
+.tabs button[aria-selected="true"] { background: var(--accent-soft); border-color: var(--accent); }
+.tabs .search { flex: 1 1 160px; padding: 4px 8px; }
+.list { overflow: auto; padding: 0 18px 18px; flex: 1; }
+table { border-collapse: collapse; width: 100%; font: 13px var(--f-mono); }
+th { text-align: left; font: 600 11px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); padding: 12px 6px 6px; position: sticky; top: 0; background: var(--panel); box-shadow: 0 1px 0 var(--soft); }
+td { padding: 3px 6px; border-top: 1px solid var(--soft); overflow-wrap: anywhere; }
+td.v { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.f { color: var(--muted); }
+tr.new td:first-child { color: var(--add); font-weight: 600; }
+.foot { font-size: 12.5px; color: var(--muted); padding: 8px 18px; border-top: 1px solid var(--line); }
+/* left timeline rail: absolute date at each build, elapsed time between builds */
+.row { display: grid; grid-template-columns: 96px minmax(0, 1fr); column-gap: 10px; position: relative; }
+.row::before { content: ""; position: absolute; left: 96px; top: 0; bottom: 0; width: 1px; background: var(--line); transform: translateX(-5px); }
+.rail { text-align: right; padding: 12px 20px 0 0; font: 600 12px/1.2 var(--f-mono); color: var(--muted); font-variant-numeric: tabular-nums; position: relative; white-space: nowrap; }
+.rail::after { content: ""; position: absolute; right: -15px; top: 16px; width: 9px; height: 9px; border-radius: 0; background: var(--c, var(--muted)); border: 2px solid var(--bg); }
+.rail small { display: block; font-weight: 400; font-size: 11px; opacity: .8; }
+.row > .card { margin-block: 5px; }
+.later { justify-content: flex-start; padding-left: 106px; }
+.later::before { display: none; }
+.date.inl { display: none; }
+@media (max-width: 700px) { .row { display: block; } .row::before, .rail { display: none; } .later { padding-left: 0; justify-content: center; } .later::before { display: block; } .date.inl { display: inline; } }
+.cmpbar { position: sticky; bottom: 8px; z-index: 6; margin-top: 10px; padding: 8px 12px; border: 1px solid var(--accent); border-radius: 0; background: var(--accent-soft);
+  display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; font-size: 13px; }
+.cmpbar b { font-weight: 600; }
+.card.pick { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); }
+.btn.cmpb { color: var(--muted); }
+@media (max-width: 560px) { .title { font-size: 18px; } }
+@media (prefers-reduced-motion: reduce) { .tg .arr { transition: none; } }
+
+/* ================= Steam 2003 skin =================
+   Olive panels with raised/inset bevels, gold headings, Tahoma text, square corners.
+   Everything above is the layout; this layer only changes how it looks (delete it to get the old look back, plus the tokens at the top). */
+::selection { background: #6b7d58; color: #fff; }
+body { font: 13px/1.5 var(--f-body); background: var(--bg); }
+a { color: var(--accent); }
+code, .mono { font-family: var(--f-mono); font-size: .9em; }
+:focus-visible { outline: 1px dotted var(--accent); outline-offset: 1px; border-radius: 0; }
+input[type="checkbox"] { accent-color: #8a9a78; }
+
+/* scrollbars: olive, flat */
+* { scrollbar-width: thin; scrollbar-color: #7f8c75 var(--well); }
+::-webkit-scrollbar { width: 14px; height: 14px; background: var(--well); }
+::-webkit-scrollbar-thumb { background: #66745c; border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); }
+
+/* page header: a black Steam-site strip for the games, then a big uppercase title with the little rule under it */
+header.top { padding-block: 0 12px; gap: 12px; }
+h1 { font: 700 clamp(26px, 4.4vw, 40px)/1.05 var(--f-display); text-transform: uppercase; letter-spacing: .05em; color: #f1f4ea; text-shadow: 2px 2px 0 #1f261b; }
+h1 .lambda { color: var(--accent); }
+.lede { color: var(--muted); }
+.stats { padding: 6px 10px; background: var(--well); border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); width: max-content; max-width: 100%; }
+
+/* tabs (Timeline / Speedrun packs) */
+
+/* controls: inset search wells, flat toggles */
+.controls { background: var(--bg); border-bottom: 1px solid var(--lo); box-shadow: 0 1px 0 var(--hi); }
+.search { background: var(--well); border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); padding: 5px 9px; }
+.search input { font: 12px var(--f-mono); color: #e6ebdf; }
+.search input::placeholder { color: #8d9884; }
+.toggle { color: var(--fg); }
+.legend { color: var(--muted); }
+.legend button { color: var(--fg); }
+.dot { border-radius: 0; width: 9px; height: 9px; }
+
+/* year dividers and the "later" rails */
+.year { color: var(--accent); font: 700 20px/1 var(--f-display); letter-spacing: .08em; }
+.year::after { background: var(--lo); box-shadow: 0 1px 0 var(--hi); height: 2px; }
+.later { color: var(--muted); }
+.later::before, .later::after { background: var(--lo); box-shadow: 0 1px 0 #566249; }
+
+/* cards are Steam windows: a darker title strip with the build name, raised olive body */
+.card { padding: 0 12px 8px; background: var(--panel); border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); box-shadow: 1px 1px 0 #1b2118; }
+.card .l1 { margin: 0 -12px 6px; padding: 5px 12px; background: var(--titlebar); border-bottom: 1px solid var(--lo); box-shadow: 0 1px 0 #5a6750; }
+.card.quiet { background: transparent; border: 1px dashed #66745c; box-shadow: none; }
+.card.quiet .l1 { background: transparent; box-shadow: none; border-bottom: 0; margin-bottom: 0; }
+.card.ghost { background: transparent; border: 1px dashed #66745c; box-shadow: none; color: var(--muted); }
+.card.ghost .l1 { background: transparent; box-shadow: none; border-bottom: 0; }
+.card.hit, .card.pick { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent), 1px 1px 0 #1b2118; }
+.title { font: 700 17px/1.1 var(--f-display); letter-spacing: .03em; color: #f1f4ea; }
+.date, .kv { color: var(--muted); }
+.kv b { color: #f1f4ea; }
+.pname { color: var(--fg); }
+.pt { border-radius: 0; background: transparent; padding: 3px 6px; font: 700 10px/1 var(--f-body); letter-spacing: .1em; }
+.pt.q { background: var(--c); color: #1c2218; }
+.pt.inv { background: var(--c); color: #1c2218; }
+.pt.q.inv { background: transparent; color: var(--c); }
+.legend .lhb { margin-left: auto; padding: 2px 0; }
+.controls .toggle { line-height: 20px; }   /* a whole-pixel height: at 19.5px the sticky bar ended on half a pixel and what scrolled under it flickered in the last row */
+
+/* buttons: raised, flat olive, pressed when open */
+.btn { background: #5b6951; color: #eef2e6; border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); padding: 2px 10px; font: 700 11px var(--f-body); letter-spacing: .04em; }
+.btn:hover { background: #667559; border-color: #a2ad98 var(--lo) var(--lo) #a2ad98; }
+.btn:active, .btn[aria-expanded="true"] { background: #3f4a38; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+.tabs button[aria-selected="true"] { background: #3f4a38; border-color: var(--lo) var(--hi) var(--hi) var(--lo); color: var(--accent); }
+
+/* counters: CVAR / CMDS / FILE rows */
+.tg { color: var(--fg); font: 700 11px var(--f-body); }
+.l2.stack .tg:not([disabled]):hover { background: rgba(0, 0, 0, .18); }
+.tg .lbl { color: #cfd7c4; }
+.tot, .n-a, .n-r, .n-c { border-radius: 0; padding: 2px 6px; border: 1px solid; }
+.tot { background: var(--total-bg); border-color: var(--lo) #6c7a62 #6c7a62 var(--lo); color: #eef2e6; }
+.n-a { border-color: #4f7a3a; } .n-r { border-color: #86463c; } .n-c { border-color: #857f3a; }
+.colhead { color: var(--muted); }
+
+/* the lists inside a card */
+.box li .vbox { background: var(--well); border-color: var(--lo) #6c7a62 #6c7a62 var(--lo); border-radius: 0; }
+.origin { border-radius: 0; border-color: #6c7a62; color: var(--muted); }
+.origin.eng { color: var(--accent); border-color: var(--accent); }
+.src { background: var(--well); border: 1px solid; border-color: var(--lo) #6c7a62 #6c7a62 var(--lo); border-radius: 0; padding: 8px 10px; }
+.also { color: var(--muted); }
+.also .ac { color: var(--accent); border-bottom: 1px dotted var(--accent); }
+.howto { border-top: 1px solid var(--lo); box-shadow: 0 -1px 0 #566249; }
+.howto h4, .box .fgrp, .box details summary { color: var(--accent); }
+.howto pre { background: #242c24; border: 1px solid; border-color: var(--lo) #6c7a62 #6c7a62 var(--lo); border-radius: 0; color: #dde8cf; }
+.howto .cp { background: #5b6951; color: #eef2e6; border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); border-radius: 0; }
+.howto .cp:hover { background: #667559; color: #fff; }
+.howto .dtab th { color: var(--accent); border-bottom: 1px solid var(--lo); box-shadow: 0 1px 0 #566249; }
+.howto .dtab tbody tr:nth-child(odd) td { background: var(--row-a); }
+.howto .dtab tbody tr:nth-child(even) td { background: var(--row-b); }
+.howto .dtab td { padding: 4px 8px; }
+.howto .dtab th { padding: 4px 8px; }
+.howto .tested { color: var(--muted); }
+.alsoh summary { color: var(--accent); }
+
+/* tables: darker zebra rows and a gold header, like the Steam2 browser list */
+table { font: 12px var(--f-mono); }
+th { background: var(--titlebar); color: var(--accent); border-bottom: 1px solid var(--lo); box-shadow: 0 1px 0 #5a6750; padding: 6px 8px; }
+td { border-top: 0; padding: 3px 8px; }
+tbody tr:nth-child(odd) td { background: var(--row-a); }
+tbody tr:nth-child(even) td { background: var(--row-b); }
+tr.new td:first-child { color: var(--add); }
+
+/* timeline rail: square markers */
+.row::before { background: var(--lo); box-shadow: 1px 0 0 #566249; }
+.rail { color: var(--muted); }
+
+/* milestone banners, compare bar and the drawer */
+.ms { border: 1px solid var(--accent); background: var(--accent-soft); border-radius: 0; box-shadow: inset 1px 1px 0 #7a7840, inset -1px -1px 0 #3a3a1c; }
+.ms-t b { color: #f1f4ea; font-family: var(--f-display); text-transform: uppercase; letter-spacing: .06em; }
+.ms-t span { color: #dfe3d0; }
+/* slim milestone: one line under the "days later" row, marked on the date rail */
+.ms { justify-content: flex-start; gap: 10px; margin-block: 2px 4px; padding: 5px 12px; }
+.ms .fw { width: 22px; height: 22px; }
+.ms-t { display: flex; flex-wrap: wrap; align-items: baseline; text-align: left; gap: 0 12px; }
+.ms-t b { font-size: 15px; line-height: 1.3; }
+.ms-t span { font-size: 13px; }
+.rail.msr { padding-top: 7px; }
+.gc { white-space: nowrap; background: #1f3a24; color: #d3ecc9; padding: 1px 6px; font: 12.5px var(--f-mono); border: 1px solid #14261a; }
+.rail.msr::after { top: 11px; background: var(--accent); }
+.rail.msr::after { background: var(--accent); }
+.cmpbar { background: var(--accent-soft); border: 1px solid var(--accent); border-radius: 0; box-shadow: 0 -1px 0 var(--lo); }
+.scrim { background: rgb(8, 12, 6, .55); }
+.drawer { background: var(--panel); border-left: 2px solid var(--hi); box-shadow: -3px 0 0 var(--lo); }
+.drawer header { background: var(--titlebar); border-bottom: 1px solid var(--lo); box-shadow: 0 1px 0 #5a6750; }
+.drawer h2 { font-family: var(--f-display); text-transform: uppercase; letter-spacing: .04em; color: #f1f4ea; }
+.foot { border-top: 1px solid var(--lo); box-shadow: 0 -1px 0 #566249; }
+
+/* ---- page frame: a soft-edged centre column (like a Steam profile) floating over a faint tile of embossed Half-Life lambdas ---- */
+html { background: #2d3228; }
+body { background-color: #2d3228;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='340' height='340'%3E%3Cpath transform='translate(48.6 41.6) scale(0.2303)' fill-rule='evenodd' fill='%23474e3e' opacity='.5' d='M0 165a165 165 0 1 0 330 0a165 165 0 1 0-330 0ZM28 165a137 137 0 1 0 274 0a137 137 0 1 0-274 0ZM118 70L167.5 69.5L229 226.1L255.5 216L265.5 245.8L206.5 263.5L169.5 168.5L113 257.5L73.5 256.5L153.5 122.5L142.5 98L118 98Z'/%3E%3Cpath transform='translate(47 40) scale(0.2303)' fill-rule='evenodd' fill='%23262b22' d='M0 165a165 165 0 1 0 330 0a165 165 0 1 0-330 0ZM28 165a137 137 0 1 0 274 0a137 137 0 1 0-274 0ZM118 70L167.5 69.5L229 226.1L255.5 216L265.5 245.8L206.5 263.5L169.5 168.5L113 257.5L73.5 256.5L153.5 122.5L142.5 98L118 98Z'/%3E%3Cpath transform='translate(218.6 211.6) scale(0.2303)' fill-rule='evenodd' fill='%23474e3e' opacity='.5' d='M0 165a165 165 0 1 0 330 0a165 165 0 1 0-330 0ZM28 165a137 137 0 1 0 274 0a137 137 0 1 0-274 0ZM118 70L167.5 69.5L229 226.1L255.5 216L265.5 245.8L206.5 263.5L169.5 168.5L113 257.5L73.5 256.5L153.5 122.5L142.5 98L118 98Z'/%3E%3Cpath transform='translate(217 210) scale(0.2303)' fill-rule='evenodd' fill='%23262b22' d='M0 165a165 165 0 1 0 330 0a165 165 0 1 0-330 0ZM28 165a137 137 0 1 0 274 0a137 137 0 1 0-274 0ZM118 70L167.5 69.5L229 226.1L255.5 216L265.5 245.8L206.5 263.5L169.5 168.5L113 257.5L73.5 256.5L153.5 122.5L142.5 98L118 98Z'/%3E%3C/svg%3E");
+  background-repeat: repeat; background-attachment: scroll; }
+/* the column: a thin lighter border, a soft glow of shadow around it, darker fade just inside the left and right edges, and a gap above and below */
+.wrap { max-width: 1010px; margin: 20px auto; padding-inline: 26px; border: 1px solid #5d6a52;
+  background: var(--bg);
+  box-shadow: 0 0 0 1px rgba(16, 20, 13, .55), 0 8px 40px 6px rgba(0, 0, 0, .45); }
+@media (max-width: 1060px) { .wrap { margin-block: 0; border-inline: 0; box-shadow: none; background: var(--bg); } }
+@media (max-width: 560px) { .wrap { padding-inline: 12px; } }
+.pagefoot { margin: 22px -26px 0; padding: 9px 26px; background: var(--titlebar); border-top: 1px solid var(--lo); box-shadow: inset 0 1px 0 #5a6750;
+  font: 11px var(--f-mono); color: var(--muted); letter-spacing: .04em; }
+@media (max-width: 560px) { .pagefoot { margin-inline: -12px; padding-inline: 12px; } }
+
+/* header: title, full-width description, stats, then the game picker and the tabs */
+header.top { padding-block: 22px 12px; gap: 12px; }
+h1 { margin: 0; }
+.lede { max-width: none; }
+.stats { width: 100%; justify-content: space-between; gap: 6px 14px; }
+
+/* game picker: four raised buttons; the open game is pressed in with gold lettering and its build count underneath */
+.games { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; background: none; padding: 0; border: 0; margin-top: 2px; }
+.games a { display: grid; gap: 2px; justify-items: center; padding: 8px 6px 7px; text-decoration: none; text-transform: none; letter-spacing: 0;
+  background: #56634b; color: #e9eee0; border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); box-shadow: 1px 1px 0 #1b2118; }
+.games a .gn { font: 700 12px var(--f-body); letter-spacing: .08em; text-transform: uppercase; }
+.games a .gc { font: 11px var(--f-mono); color: var(--muted); }
+.games a:hover { background: #637258; color: #fff; border: 1px solid; border-color: #a2ad98 var(--lo) var(--lo) #a2ad98; }
+.games a.on { background: #3b4534; box-shadow: none; border-color: var(--lo) var(--hi) var(--hi) var(--lo); transform: translate(1px, 1px); }
+.games a.on .gn { color: var(--accent); } .games a.on .gc { color: #cfd7c4; }
+@media (max-width: 560px) { .games { grid-template-columns: repeat(2, 1fr); } }
+
+/* tabs: two raised tabs on a shelf; the open one joins the page below it */
+.views { gap: 4px; border-bottom: 1px solid var(--hi); margin-top: 6px; padding-left: 18px; }
+.hint1 { max-width: none; font-size: 12px; }
+.legend { align-items: center; }
+.legend .lhint { color: var(--muted); font-size: 12px; margin-right: 2px; }
+.legend button { padding: 3px 9px; border: 1px solid var(--lo); background: #56634b; box-shadow: 1px 1px 0 #1b2118; }
+.legend button:hover { background: #637258; border-color: var(--c); }
+.legend button[aria-pressed="false"] { box-shadow: none; background: transparent; border-style: dashed; }
+.views button { font: 700 12px var(--f-body); letter-spacing: .1em; text-transform: uppercase; padding: 8px 18px; margin-bottom: -1px; cursor: pointer;
+  background: #56634b; color: #e9eee0; border: 1px solid; border-color: var(--hi) var(--lo) var(--hi) var(--hi); box-shadow: 1px 0 0 #1b2118; }
+.views button:hover { background: #637258; color: #fff; }
+.views button[aria-selected="true"] { background: var(--bg); color: var(--accent); border-color: var(--hi) var(--lo) var(--bg) var(--hi); padding-bottom: 9px; }
+.views .n { color: var(--muted); }
+
+/* card header: one larger square in the lane's colour, then the build name; exe and protocol have a fixed line above the counters */
+.title::before { content: ""; display: inline-block; width: 12px; height: 12px; margin-right: 9px; vertical-align: -1px; background: var(--c, var(--muted));
+  border: 1px solid rgba(0, 0, 0, .5); box-shadow: inset 1px 1px 0 rgba(255, 255, 255, .4); }
+.rail::after { display: none; }
+.meta { display: grid; grid-template-columns: 17ch 17ch auto; gap: 0 8px; margin: 2px 0 5px; min-height: 1.4em; }
+.l1 .pname { font: 600 13px var(--f-body); color: #e3e9d9; }
+
+/* build range: two numbers in one inset well, the limits of what the page holds shown as placeholders; between them a slider with a handle at each end */
+.crow.top { align-items: stretch; }
+.range { display: flex; flex-direction: column; flex: 1 1 400px; max-width: 640px; gap: 1px; padding: 3px 9px 4px; color: var(--muted); font: 12px var(--f-mono);
+  background: var(--well); border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+.rn { display: flex; justify-content: space-between; align-items: baseline; }
+.range .rl { font: 700 11px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--accent); }
+.range input { width: 6.2ch; border: 0; outline: 0; background: transparent; color: #e6ebdf; font: 12px var(--f-mono); text-align: left; padding: 1px 0;
+  -moz-appearance: textfield; appearance: textfield; }
+.range input::-webkit-outer-spin-button, .range input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+#bTo { text-align: right; }
+.range input::placeholder { color: #8d9884; }
+.rs { flex: none; min-width: 120px; height: 18px; position: relative; cursor: pointer; touch-action: none; user-select: none; }
+.rs[hidden] { display: none; }
+.rs-rail { position: absolute; inset: 0 14px; }
+.rs-track { position: absolute; left: 0; right: 0; top: 6px; height: 6px; background: var(--lo); border: 1px solid; border-color: var(--lo) var(--hi) var(--hi) var(--lo); }
+.rs-fill { position: absolute; top: 0; bottom: 0; background: #6b7a5e; }
+.rs-h { position: absolute; top: 0; width: 14px; height: 18px; margin-left: 0; background: var(--panel); outline: 0; cursor: ew-resize;
+  border: 1px solid; border-color: var(--hi) var(--lo) var(--lo) var(--hi); box-shadow: 0 0 0 1px #000; }
+#rsLo { margin-left: -14px; }
+.rs-h::after { content: ""; position: absolute; left: 4px; right: 4px; top: 4px; bottom: 4px; border-left: 1px solid var(--lo); border-right: 1px solid var(--hi); }
+.rs-h:focus-visible, .rs.drag .rs-h.act { background: #5f6e54; border-color: #aab59f #2a3125 #2a3125 #aab59f; }
+.toggle .sub { color: var(--muted); opacity: .8; }
+
+/* a build that is only reported (dashed card): what kind of report it is */
+.pt.d { border-style: dashed; }
+
+/* a folded run of builds: one card for several, with a pile of pages showing behind it; opening it takes the pile away */
+.fold .foldcard { background: var(--panel-2); margin-bottom: 12px;
+  box-shadow: 1px 1px 0 #1b2118, 4px 4px 0 -1px var(--panel-2), 4px 4px 0 0 var(--lo), 8px 8px 0 -1px var(--panel-2), 8px 8px 0 0 var(--lo); }
+.fold .foldcard.open { margin-bottom: 5px; box-shadow: 1px 1px 0 #1b2118; }
+.foldcard .l1 .pname { color: var(--muted); font-weight: 400; }
+.foldcard .foldnote { font-size: 12.5px; color: var(--muted); margin: 0 0 4px; max-width: 70ch; }
+.foldcard .foldbuilds { font: 11.5px var(--f-mono); color: var(--muted); margin-top: 6px; overflow-wrap: anywhere; }
+.foldcard .foldbuilds b { color: var(--fg); font-weight: 600; }
+.foldrows .card { margin-block: 5px; }
+
+/* file changes: one dropdown per kind of file (maps, models, sounds ...), counts in the same columns on every line */
+.box details.fk { margin: 0; }
+.box details.fk > summary { display: grid; grid-template-columns: 1.4ch 15ch repeat(3, 7.4ch); gap: 0 8px; align-items: center; width: max-content; max-width: 100%;
+  list-style: none; cursor: pointer; padding: 2px 4px; margin: 1px -4px; font: 700 11px var(--f-body); letter-spacing: .08em; text-transform: uppercase; color: var(--fg); }
+.box details.fk > summary::-webkit-details-marker { display: none; }
+.box details.fk > summary::before { content: "▶"; font-size: 10px; color: var(--muted); display: inline-block; transition: transform .12s; }
+.box details.fk[open] > summary::before { transform: rotate(90deg); }
+.box details.fk > summary:hover { background: rgba(0, 0, 0, .18); }
+.box details.fk > summary .fkl { color: #cfd7c4; }
+.box details.fk[open] > summary .fkl { color: var(--accent); }
+.box details.fk > ul.grid { margin: 3px 0 8px 22px; }
+.box details.fk > .fkb { margin: 3px 0 8px 22px; }
+.box details.fk .btn.more { margin-top: 6px; }
+.box table.ft { font-size: 12px; }
+.box table.ft td { padding: 2px 8px; }
+.drawer .box { margin-top: 10px; }
+
+/* small screens */
+h1 { overflow-wrap: anywhere; text-wrap: balance; }
+@media (max-width: 560px) {
+  .controls { position: static; }   /* stacked, the controls would cover half a phone screen */
+  h1 { font-size: 22px; letter-spacing: .03em; }
+  .games a { padding: 9px 8px; letter-spacing: .06em; }
+  .made { grid-template-columns: minmax(0, 1fr); gap: 0; } .made .w { margin-bottom: 6px; }
+  .card .l1 { padding-inline: 10px; }
+}
+</style>
+<style>
+#stats, #games, nav.views, #legend, .hint, .pagefoot, #pagePacks { display: none !important; }
+.controls .crow:not(.top) { display: none !important; }
+</style>
+</head>
+<body>
+
+
+<div class="wrap">
+  <header class="top">
+    <h1>Every <span class="lambda">GoldSrc</span> SteamPipe build</h1>
+    <p class="lede">Each step is a SteamPipe build of Half-Life: when it shipped and which cvars and commands changed since the build before it.</p>
+    <div class="stats" id="stats"></div>
+    <nav class="games" id="games" aria-label="Game"></nav>
+    <nav class="views" role="tablist">
+      <button id="vTimeline" role="tab" aria-selected="true">Timeline</button>
+      <button id="vPacks" role="tab" aria-selected="false">Speedrun packs</button>
+    </nav>
+  </header>
+
+  <section id="pageTimeline">
+    <div class="controls">
+      <div class="crow top">
+        <label class="search"><span aria-hidden="true">⌕</span>
+          <input id="q" type="search" placeholder="Track a cvar or command, e.g. fps_max" autocomplete="off" spellcheck="false"></label>
+        <div class="range" role="group" aria-label="Build range" id="range">
+          <div class="rn">
+            <input id="bFrom" type="number" inputmode="numeric" step="1" aria-label="From build" autocomplete="off">
+            <span class="rl">Builds</span>
+            <input id="bTo" type="number" inputmode="numeric" step="1" aria-label="To build" autocomplete="off">
+          </div>
+          <div class="rs" id="rs">
+            <div class="rs-rail" id="rsRail">
+              <div class="rs-track"><div class="rs-fill" id="rsFill"></div></div>
+              <div class="rs-h" id="rsLo" role="slider" tabindex="0" aria-label="First build shown"></div>
+              <div class="rs-h" id="rsHi" role="slider" tabindex="0" aria-label="Last build shown"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="crow">
+        <label class="toggle" title="Folds a run of builds in which the engine added, removed or changed no cvar and no command into one block, labelled with its first and last build. What else changed in the run (recompiled DLLs, maps, models ...) is added up on the block."><input id="quiet" type="checkbox" checked> Fold builds with no engine differences</label>
+        <label class="toggle" title="Build numbers that online build lists name (oxiKKK, ExtraVirus/_Smiley, SourceRuns wiki, Valve Developer Wiki) but that we have not dumped. For most of them no copy has turned up, so nothing confirms they exist; a few are on discs or patches we hold."><input id="missing" type="checkbox"> Show builds reported online, not collected</label>
+      </div>
+    </div>
+    <div class="legend" id="legend"></div>
+    <p class="hint hint1">Changes tagged <span class="origin eng">engine</span> also show up in <code>valve_WON</code> (its game DLLs never change), so they come from <code>hw.dll</code>; the rest from the Half-Life DLLs.</p>
+    <main class="tl" id="tl"></main>
+  </section>
+
+  <section id="pagePacks" hidden>
+    <p class="hint">Speedrun packs aren't releases: each one is assembled from files of several releases. Every pack below
+      lists where its core files come from, and how its <code>valve</code> dump differs from the same engine build on Steam.</p>
+    <main id="packs"></main>
+  </section>
+
+  <footer class="pagefoot" id="pageFoot"></footer>
+</div>
+
+<div class="scrim" id="scrim" hidden></div>
+<aside class="drawer" id="drawer" hidden aria-modal="true" role="dialog" aria-labelledby="dTitle">
+  <header>
+    <button class="btn close" id="dClose">Close</button>
+    <div class="eyebrow" id="dEyebrow"></div>
+    <h2 id="dTitle"></h2>
+    <div class="files" id="dFiles"></div>
+    <div class="tabs">
+      <button class="btn" id="tabCvars" aria-selected="true">Cvars</button>
+      <button class="btn" id="tabCmds" aria-selected="false">Commands</button>
+      <button class="btn" id="tabFiles" aria-selected="false">Files</button>
+      <label class="search"><input id="dq" type="search" placeholder="Filter" autocomplete="off" spellcheck="false"></label>
+    </div>
+  </header>
+  <div class="list" id="dList"></div>
+  <div class="foot" id="dFoot"></div>
+</aside>
+
+<script src="data.js"></script>
+<script>
+const ALL = window.TIMELINE;
+// The page is drawn for one game at a time. Switching games resets every interactive element (fresh
+// copies drop their old listeners) and draws the page again for the new game; no reload needed.
+const LIVE_IDS = ['legend', 'tl', 'packs', 'q', 'quiet', 'missing', 'bFrom', 'bTo', 'rs','vTimeline', 'vPacks', 'tabCvars', 'tabCmds', 'tabFiles', 'dq', 'dClose', 'scrim', 'stats', 'dList'];
+function switchGame(k) {
+  LIVE_IDS.forEach(id => { const el = document.getElementById(id); if (el) el.replaceWith(el.cloneNode(true)); });
+  ['tl', 'packs', 'legend', 'dList'].forEach(id => { document.getElementById(id).innerHTML = ''; });
+  ['bFrom', 'bTo'].forEach(id => { document.getElementById(id).value = ''; });   // another game has other builds: a range typed for this one would hide them all
+  const d = document.getElementById('drawer'); if (d) d.hidden = true;
+  document.getElementById('scrim').hidden = true;
+  try { localStorage.setItem('gst.game', k); } catch {}
+  start(k);
+}
+function start(gameKey) {
+  // one page per game: the game is the link's #token (hl, of, bs, gmc)
+  const D = { ...ALL.games[gameKey], generated: ALL.generated };
+  // each game is a button with its name and how many builds we hold of it (folded duplicates included)
+  const buildCount = k => ALL.games[k].nodes.filter(n => n.dumped && n.thread !== 'pack').reduce((s, n) => s + 1 + (n.also || []).length, 0);
+  document.getElementById('games').innerHTML = ALL.order.map(k => `<a href="#${k}" data-game="${k}" class="${k === gameKey ? 'on' : ''}"><span class="gn">${ALL.games[k].game}</span><span class="gc">${buildCount(k)} build${buildCount(k) === 1 ? '' : 's'}</span></a>`).join('');
+  const foot = document.getElementById('pageFoot'); if (foot) foot.textContent = `GoldSrc version history · ${D.game} · data generated ${D.generated}`;
+  const threads = D.threads.map(([id, name], i) => ({ id, name, i }));
+  const T = Object.fromEntries(threads.map(t => [t.id, t]));
+  const all = D.nodes.map((n, i) => ({ ...n, idx: i }));
+  const nodes = all.filter(n => n.thread !== 'pack');
+  const packs = all.filter(n => n.thread === 'pack');
+  const byId = Object.fromEntries(all.map(n => [n.id, n]));
+  const shown = Object.fromEntries(threads.map(t => [t.id, true]));
+  const PARENT = { beta: 'public', legacy: 'public' };   // a lane that only shows while its parent lane does
+  const snapMaps = D.snaps.map(s => ({ cv: new Map(s.cvars.map(c => [c[0], c])), cm: new Set(s.cmds) }));
+  const $ = id => document.getElementById(id);
+  const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  const day = t => (t || '').slice(0, 10);
+  const store = { get(k, d) { try { const v = localStorage.getItem('gst.' + k); return v === null ? d : JSON.parse(v); } catch { return d; } },
+                  set(k, v) { try { localStorage.setItem('gst.' + k, JSON.stringify(v)); } catch {} } };
+  Object.assign(shown, store.get('threads', {}));
+  $('quiet').checked = store.get('quiet', false);
+  const counts = d => d ? { cv: [d.cvar_added.length, d.cvar_removed.length, d.cvar_changed.length], cm: [d.cmd_added.length, d.cmd_removed.length] } : null;
+  const total = d => d ? d.cvar_added.length + d.cvar_removed.length + d.cvar_changed.length + d.cmd_added.length + d.cmd_removed.length : 0;
+
+  const dumped = nodes.filter(n => n.dumped);
+  // builds per source, folded duplicates included (a card with "Also shipped as" stands for several builds)
+  const KIND = { steam2: 'steam2', public: 'steampipe', beta: 'steampipe', legacy: 'steampipe', won: 'retail', pre: 'test', nettest: 'test' };
+  const tally = { steam2: 0, steampipe: 0, retail: 0, test: 0 };
+  dumped.forEach(n => { const k = KIND[n.thread]; if (k) tally[k] += 1 + (n.also || []).length; });
+  const builds = dumped.reduce((s, n) => s + 1 + (n.also || []).length, 0);
+  $('stats').title = 'Data generated ' + D.generated;
+  $('stats').innerHTML = [[builds, 'dumped builds'], [tally.test, 'pre-release builds'], [tally.retail, 'WON / retail builds'],
+    [tally.steam2, 'Steam2 builds'], [tally.steampipe, 'SteamPipe builds']].filter(([v]) => v > 0)
+    .map(([v, k]) => `<span><b>${esc(v)}</b> ${esc(v === 1 ? k.replace(/builds$/, 'build') : k)}</span>`).join('');
+  $('vPacks').querySelector('.n')?.remove(); $('vPacks').insertAdjacentHTML('beforeend', `<span class="n">${packs.length}</span>`);
+
+  function legend() {
+    const c = {}; nodes.forEach(n => c[n.thread] = (c[n.thread] || 0) + 1);
+    const hb = c.beta ? `<label class="toggle lhb${shown.public ? '' : ' off'}" title="${shown.public ? 'Betas are SteamPipe builds from the beta branches' : 'Betas are SteamPipe builds: they stay hidden while SteamPipe is hidden'}"><input type="checkbox" data-hb ${shown.beta ? '' : 'checked'} ${shown.public ? '' : 'disabled'}>Hide betas <span class="mono">${c.beta}</span></label>` : '';
+    $('legend').innerHTML = '<span class="lhint">Click to show or hide:</span>' + threads.filter(t => c[t.id] && t.id !== 'beta').map(t =>
+      `<button data-t="${t.id}" aria-pressed="${shown[t.id]}" style="--c: var(--l-${t.id})"><span class="dot"></span>${esc(t.name)} <span class="mono">${c[t.id]}</span></button>`).join('') + hb;
+  }
+  $('legend').addEventListener('click', e => {
+    const cb = e.target.closest('input[data-hb]');
+    if (cb) { shown.beta = !cb.checked; store.set('threads', shown); legend(); render(); return; }
+    const b = e.target.closest('button[data-t]'); if (!b) return;
+    shown[b.dataset.t] = !shown[b.dataset.t]; store.set('threads', shown);
+    legend(); render();
+  });
+
+  function track(n, q) {
+    if (!q || n.snap == null) return null;
+    const s = snapMaps[n.snap], c = s.cv.get(q), d = n.diff;
+    const changed = !!d && (d.cvar_added.some(x => x[0] === q) || d.cvar_removed.some(x => x[0] === q) ||
+      d.cvar_changed.some(x => x[0] === q) || d.cmd_added.includes(q) || d.cmd_removed.includes(q));
+    if (c) return { text: `${q} = ${c[1]}${c[2] ? '  (' + c[2] + ')' : ''}`, changed };
+    if (s.cm.has(q) || s.cm.has(q.slice(0, 16))) return { text: `${q}: command present`, changed };
+    return { text: `${q}: not in this build`, changed };
+  }
+
+  function listHtml(n, kind) {
+    const d = n.diff, eng = new Set(d.engine || []), hasEng = !!d.engine;
+    const tag = (k, name) => hasEng ? `<span class="origin${eng.has(k + ':' + name) ? ' eng">engine' : '">HL DLLs'}</span>` : '';
+    const v = x => `<span class="vbox">${esc(x)}</span>`;   // values boxed so they stand apart from names
+    // every row is exactly six cells (sign, name, old/value, arrow, new, origin) so values line up in columns
+    const row = (cls, sign, nm, a, mid, b, org) => `<li class="${cls}"><span class="sign">${sign}</span><span class="nm">${esc(nm)}</span>${a !== '' ? v(a) : '<span></span>'}<span class="val arrow">${mid}</span>${b !== '' ? v(b) : '<span></span>'}${org || '<span></span>'}</li>`;
+    const items = kind === 'cv' ? [
+      ...d.cvar_added.map(([k, x]) => row('a', '+', k, x, '', '', tag('cvar', k))),
+      ...d.cvar_removed.map(([k, x]) => row('r', '−', k, x, '', '', tag('cvar', k))),
+      ...d.cvar_changed.map(([k, a, b]) => row('c', '~', k, a, '→', b, tag('cvar', k)))]
+    : [...d.cmd_added.map(k => row('a', '+', k, '', '', '', tag('cmd', k))),
+       ...d.cmd_removed.map(k => row('r', '−', k, '', '', '', tag('cmd', k)))];
+    return `<ul class="grid">${items.join('')}</ul>`;
+  }
+  // Files added, removed or changed since the parent step, one dropdown per kind of file (engine, config, maps, models,
+  // sounds ...), each line old → new short sha256. The same kinds sort a build's whole file list in the Files tab.
+  const FSIGN = { added: ['a', '+'], removed: ['r', '−'], changed: ['c', '~'] };
+  const FIDX = { added: 0, removed: 1, changed: 2 };
+  const FKINDS = [['core', 'Engine & DLLs'], ['config', 'Config'], ['map', 'Maps'], ['map data', 'Map data'], ['model', 'Models'], ['sprite', 'Sprites'],
+                  ['sound', 'Sounds'], ['texture', 'Textures'], ['image', 'Images'], ['ui', 'UI'], ['text', 'Text'], ['other', 'Other']];
+  const fkTitle = k => (FKINDS.find(x => x[0] === k) || [k, k])[1];
+  const fkOrder = have => [...FKINDS.map(x => x[0]), ...have.filter(k => !FKINDS.some(x => x[0] === k))].filter(k => have.includes(k));
+  const KIND_EXT = ALL.kinds || {};
+  const kindOf = p => KIND_EXT[(p.match(/\.[^.\\]*$/) || [''])[0].toLowerCase()] || 'other';
+  const fileKinds = f => ({ core: f.core, config: f.config, map: f.map, ...f.other });   // kind -> [[path, status, old, new], ...]
+  const fileRows = f => Object.values(fileKinds(f)).flat();
+  const fileCounts = f => { const c = [0, 0, 0]; if (f) fileRows(f).forEach(r => c[FIDX[r[1]]]++); return c; };
+  function fileHtml(n) {
+    const f = n.file_diff, kinds = fileKinds(f), v = x => `<span class="vbox">${esc(x)}</span>`;
+    const li = ([path, st, a, b]) => `<li class="${FSIGN[st][0]}"><span class="sign">${FSIGN[st][1]}</span><span class="nm">${esc(path)}</span>${
+      st === 'changed' ? `${v(a)}<span class="val arrow">→</span>${v(b)}` : `${v(a || b)}<span></span><span></span>`}<span></span></li>`;
+    const sect = k => {
+      const rows = kinds[k], c = [0, 0, 0]; rows.forEach(r => c[FIDX[r[1]]]++);
+      return `<details class="fk"${k === 'core' ? ' open' : ''}><summary><span class="fkl">${esc(fkTitle(k))}</span>${cells(c)}</summary><ul class="grid">${rows.map(li).join('')}</ul></details>`;
+    };
+    return fkOrder(Object.keys(kinds).filter(k => kinds[k].length)).map(sect).join('') + (f.note ? `<div class="fnote">${esc(f.note)}</div>` : '');
+  }
+  const nums = (a) => [a[0] && `<span class="n-a">+${a[0]}</span>`, a[1] && `<span class="n-r">−${a[1]}</span>`, a[2] && `<span class="n-c">~${a[2]}</span>`].filter(Boolean).join(' ');
+  // One section: label, total, arrow, changes. Labels are 4 monospace characters and totals fixed width,
+  // so the CVAR and CMDS lines stack in columns. Its list opens right under its own line.
+  // A section without changes keeps a greyed, static arrow.
+  // ch is [added, removed, changed]; shown as Added / Changed / Removed. Zero is a muted dash.
+  const cell = (v, cls) => v ? `<span class="mc ${cls}">${cls === 'n-a' ? '+' : cls === 'n-r' ? '−' : '~'}${v}</span>` : `<span class="mc zero">–</span>`;
+  const cells = ch => cell(ch[0], 'n-a') + cell(ch[2] || 0, 'n-c') + cell(ch[1], 'n-r');
+  const toggle = (n, kind, label, total, ch) => (ch.some(Boolean)
+    ? `<button class="tg" data-tg="${kind}" data-n="${n.idx}" aria-expanded="false" title="Show what changed in ${label}"><span class="lbl">${label}</span><span class="tot">${total}</span><span class="arr">▶</span>${cells(ch)}</button>`
+    : `<button class="tg" disabled title="No ${label} changes"><span class="lbl">${label}</span><span class="tot">${total}</span><span class="arr">▶</span>${cells([0, 0, 0])}</button>`)
+    + `<div class="box" data-box="${kind}-${n.idx}" hidden></div>`;
+
+  function sourceHtml(n) {
+    const s = n.source || { lines: [], get: [] }, p = byId[n.parent];
+    // plain text, with http(s) links made clickable (the text itself is escaped first)
+    const linkify = t => esc(t).replace(/https?:\/\/[^\s<)]+/g, u => `<a href="${u}" target="_blank" rel="noopener">${u}</a>`);
+    const tableHtml = t => `<table class="dtab"><thead><tr>${t.head.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead><tbody>${t.rows.map(r => `<tr>${r.map(c => `<td>${linkify(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>`;
+    const chip = t => t.replace(/`([^`]+)`/g, '<code class="gc">$1</code>');   // `like this` in a step's text: a dark green chip
+    const stepsHtml = h => `<ol>${h.steps.map(st => `<li>${chip(linkify(st.t))}${st.table ? tableHtml(st.table) : ''}${st.code ? `<div class="code"><pre>${esc(st.code)}</pre><button class="cp" data-copy title="Copy">Copy</button></div>` : ''}</li>`).join('')}</ol>${h.internal ? '' : `<div class="tested">${esc(h.note)}</div>`}`;
+    // builds folded into this card (same build, same cvars) keep their own steps, opened from the "Identical to" chips
+    const folded = (n.also || []).map((a, i) => ({ nm: alsoName(a, n).name, h: (n.also_howto || [])[i], i })).filter(x => x.h)
+      .map(x => `<details class="alsoh" data-i="${x.i}"><summary>${esc(x.nm)}: same build, its own files</summary>${stepsHtml(x.h)}</details>`).join('');
+    const hw = s.howto ? `<div class="howto">${stepsHtml(s.howto)}${folded}</div>`
+      : folded ? `<div class="howto">${folded}</div>` : '';
+    const vs = n.dumped ? `<div class="vs">${p ? 'Changes are compared with ' + esc(p.label + ' (' + day(p.time) + ')') + '.' : 'Not compared with any other build: it starts its own line.'}</div>` : '';
+    // the depot / manifest lines and "download_depot" commands repeat the steps' table, so they go when the steps are shown
+    const lines = s.howto ? s.lines.filter(l => !/^(Engine|Half-Life DLLs): depot \d+|^SteamPipe update \d+, |^Dumped on the |^client\.dll and hl\.dll are not in this depot/.test(l)) : s.lines;
+    const gets = s.howto ? s.get.filter(g => !/^download_depot |^From the Steam2 archive/.test(g)) : s.get;
+    return `<div class="src">${vs}${lines.map(l => `<div>${linkify(l)}</div>`).join('')}${gets.map(g => `<div class="get">${linkify(g)}</div>`).join('')}${hw}</div>`;
+  }
+
+  // Top-right tags: where the build came from, plus a filled tag for the kind of release it is.
+  function platform(n) {
+    const src = ((n.source || {}).lines || [])[0] || '';
+    if (n.thread === 'pack') return 'Pack';
+    if (n.thread === 'pre' && kind(n) === 'Alpha') return 'CD';
+    if (n.product || /\bdisc\b/i.test(src)) return 'CD';
+    return { won: 'WON', steam2: 'Steam2', public: 'SteamPipe', beta: 'SteamPipe', legacy: 'SteamPipe', nettest: 'NetTest', pre: 'Pre-release' }[n.thread] || '';
+  }
+  function kind(n) {
+    if (n.legacy) return 'Legacy';   // the steam_legacy branch: a SteamPipe build, tagged instead of getting a lane of its own
+    if (n.thread === 'beta') return 'Beta';
+    if (n.thread === 'nettest') return 'NetTest';
+    if (n.thread === 'pre') return /day one/i.test(n.sub || '') ? 'Day One' : /demo/i.test((n.sub || '') + ' ' + n.id) ? 'Demo' : 'Alpha';
+    return '';
+  }
+  // Source tags keep one colour each: CD and WON orange, Steam2 teal, SteamPipe blue (betas included).
+  const PT_COLOR = { CD: 'won', WON: 'won', Steam2: 'steam2', SteamPipe: 'beta', Pack: 'pack' };
+  function tags(n) {
+    const p = platform(n), k = kind(n), pc = `--c: var(--l-${PT_COLOR[p] || n.thread})`, kc = `--c: var(--l-${n.thread})`;
+    // a build that is only reported online: "Not dumped" when something we hold carries it (a disc, a patch), else "Unconfirmed"
+    const u = !n.dumped && (n.evidence
+      ? `<span class="pt d" style="--c: var(--muted)" title="A disc, patch or listing we hold carries this build, but nobody here has dumped it yet">Not dumped</span>`
+      : `<span class="pt d" style="--c: var(--muted)" title="Named by online build lists only. No copy of it has turned up, so nothing we hold confirms that it exists">Unconfirmed</span>`);
+    const inv = p === 'SteamPipe' || p === 'Steam2';
+    return [u, k && k !== p && `<span class="pt q${p === 'SteamPipe' ? ' inv' : ''}" style="${kc}">${esc(k)}</span>`, p && `<span class="pt${inv ? ' inv' : ''}" style="${pc}">${esc(p)}</span>`].filter(Boolean).join('');
+  }
+  // "2013-02-27 · SteamPipe update 73 · beta" entries, folded to "Identical to: SteamPipe updates 73, 74, 75".
+  // The channel is only named when it differs from the card's own; betas drop out while they are hidden.
+  // One entry of n.also ("2006-01-27 · Steam2 depot 0 v30 (2006-03-03)") as a short name for a chip.
+  function alsoName(a, n) {
+    const [date, label = a, ch = ''] = a.split(' · ');
+    let m;
+    if ((m = label.match(/^Steam2 depot (\d+) v(\d+) \+ depot (\d+) v(\d+)/))) return { name: `depot ${m[3]} v${m[4]}`, date, ch };   // the same engine with another game depot
+    if ((m = label.match(/^Steam2 depot (\d+) v(\d+)/))) {
+      const mine = n && (n.id.match(/^Steam2 depot (\d+)/) || [])[1];   // same depot as the card itself: just "v30"
+      return { name: m[1] === mine ? `v${m[2]}` : `depot ${m[1]} v${m[2]}`, date, ch };
+    }
+    if ((m = label.match(/^SteamPipe update (\d+)/))) return { name: `update ${m[1]}`, date, ch };
+    return { name: label, date, ch };
+  }
+  // "Identical to build 3382: [depot 0 v30] [v31] ..." Each chip opens that version's own install steps.
+  function alsoHtml(n) {
+    const own = { beta: 'beta', public: 'public' }[n.thread] || '';
+    const chips = n.also.map((a, i) => ({ ...alsoName(a, n), i })).filter(x => !(x.ch === 'beta' && !shown.beta));
+    if (!chips.length) return '';
+    // only builds with the same cvars, commands and core files are folded in here; a rebuild with other files is its own card
+    const html = chips.map(x => `<button class="ac" data-also="${n.idx}" data-i="${x.i}" title="${esc(x.date)} · same core files · show its install steps">${esc(x.name)}${x.ch && x.ch !== own ? ` (${esc(x.ch)})` : ''}</button>`).join(' ');
+    return `<div class="also">Also shipped as: ${html}</div>`;
+  }
+
+  function card(n, q, opts = {}) {
+    const d = n.diff, c = counts(d), tr = track(n, q);
+    const cls = ['card', !n.dumped && 'ghost', opts.quiet && 'quiet', tr && tr.changed && 'hit'].filter(Boolean).join(' ');
+    // a real version reads "exe 1.1.0.8" and sits on a fixed line above the counters; otherwise the build's name
+    // (a Day One bundle, "NetTest 2") goes next to the title
+    const numericExe = !!n.exe_version && /^\d+(\.\d+)+$/.test(n.exe_version);
+    const pn = n.product || (!numericExe && n.exe_version ? n.exe_version.replace(/\s*\(.*\)\s*$/, '').replace(/\balpha\b/, 'Alpha') : '');
+    const meta = numericExe || n.protocol || (opts.pack && n.build)
+      ? `<div class="meta"><span class="kv">${n.protocol ? `protocol <b>${esc(n.protocol)}</b>` : ''}</span><span class="kv">${numericExe ? `exe <b>${esc(n.exe_version)}</b>` : ''}</span>${
+          opts.pack && n.build ? `<span class="kv">engine build <b>${esc(n.build)}</b></span>` : ''}</div>` : '';
+    const l1 = `<div class="l1"><span class="title">${esc(n.label)}</span><span class="date inl">${esc(day(n.time))}</span>${pn ? `<span class="pname">${esc(pn)}</span>` : ''}
+      <span class="end">${tags(n)}</span></div>`;
+    const btns = `<span class="end"><button class="btn" data-src="${n.idx}" aria-expanded="false" title="${n.dumped ? 'Where the files come from and how to install and run this build' : 'Which online lists name this build, and what we hold of it'}">${n.dumped ? 'Install &amp; source' : 'Who reports it'}</button>${n.snap != null ? `<button class="btn" data-open="${n.idx}" title="Every cvar, command and file in this build, not only what changed">Cvars, commands &amp; files</button>` : ''}</span>`;
+    let l2 = '';
+    if (n.counts) {
+      const ch = c || { cv: [0, 0, 0], cm: [0, 0] };
+      l2 = `<div class="l2 stack">${toggle(n, 'cv', 'CVAR', n.counts[0], ch.cv)}${toggle(n, 'cm', 'CMDS', n.counts[1], ch.cm)}${
+        n.file_diff ? toggle(n, 'fi', 'FILE', n.file_diff.total, fileCounts(n.file_diff)) : ''}</div>`;
+    }
+    else if (!n.dumped && n.sub && n.sub !== 'Half-Life' && !n.product) l2 = `<div class="l2"><span class="nochange">${esc(n.sub)}</span></div>`;
+    if (n.also) l2 += alsoHtml(n);
+    const made = opts.pack && n.made_of ? `<div class="made">${n.made_of.map(([f, h, w]) =>
+      `<span>${esc(f)}</span><span class="kv">${esc(h)}</span><span class="w${w === 'not traced yet' ? ' miss' : ''}">${esc(w)}</span>`).join('')}</div>` : '';
+    const trk = tr ? `<div class="track">${tr.changed ? '<b>changed here</b> · ' : ''}${esc(tr.text)}</div>` : '';
+    return `<div class="${cls}"${opts.quiet ? ' title="Dashed: the engine added, removed or changed no cvar and no command since the build before it"' : ''} style="--c: var(--l-${n.thread})">${l1}<div class="l3"><div class="body">${meta}${l2}${made}${trk}</div>${btns}</div>
+      <div data-box="src-${n.idx}" hidden></div></div>`;
+  }
+
+  // ----- folding -----
+  // A build is quiet when the engine added, removed or changed no cvar and no command since its parent. That is what valve_WON
+  // tells apart (the engine tag on each change); without that comparison a change can't be placed, so its build stays on show.
+  // File changes don't count: Valve recompiled every DLL for most updates, so nearly every build has some.
+  const engineQuiet = n => { const d = n.diff; return !!d && (d.engine ? d.engine.length === 0 : total(d) === 0); };
+  const synth = new Map();   // folded blocks of the current page, by id; they stand in for a build when a button looks one up
+  const nodeOf = k => synth.get(k) || all[+k];
+  // What a run of builds changed in all: the state before its first build against the state after its last, per cvar, command and file.
+  function netDiff(list) {
+    const cv = new Map(), cm = new Map();   // name -> [before, after]; null = not there
+    const note = (m, k, before, after) => { const e = m.get(k); if (e) e[1] = after; else m.set(k, [before, after]); };
+    list.forEach(n => {
+      const d = n.diff; if (!d) return;
+      d.cvar_added.forEach(([k, v]) => note(cv, k, null, v)); d.cvar_removed.forEach(([k, v]) => note(cv, k, v, null));
+      d.cvar_changed.forEach(([k, a, b]) => note(cv, k, a, b));
+      d.cmd_added.forEach(k => note(cm, k, null, 1)); d.cmd_removed.forEach(k => note(cm, k, 1, null));
+    });
+    const out = { cvar_added: [], cvar_removed: [], cvar_changed: [], cmd_added: [], cmd_removed: [], engine: [] };   // a run is quiet in the engine, so every change in it is the Half-Life DLLs'
+    const byName = (a, b) => (a[0] < b[0] ? -1 : a[0] > b[0] ? 1 : 0);
+    [...cv].sort(byName).forEach(([k, [a, b]]) => { if (a === null && b !== null) out.cvar_added.push([k, b]); else if (a !== null && b === null) out.cvar_removed.push([k, a]); else if (a !== b) out.cvar_changed.push([k, a, b]); });
+    [...cm].sort(byName).forEach(([k, [a, b]]) => { if (a === null && b !== null) out.cmd_added.push(k); else if (a !== null && b === null) out.cmd_removed.push(k); });
+    return out;
+  }
+  function netFiles(list) {
+    const rows = new Map();   // lower-case path -> before / after hash; null = not there
+    list.forEach(n => { if (n.file_diff) fileRows(n.file_diff).forEach(([path, st, a, b]) => {
+      const k = path.toLowerCase(), before = st === 'added' ? null : a, after = st === 'removed' ? null : b, e = rows.get(k);
+      if (e) e.after = after; else rows.set(k, { path, before, after });
+    }); });
+    const last = list[list.length - 1].file_diff;
+    if (!rows.size && !last) return null;
+    const out = { core: [], config: [], map: [], other: {}, note: '', total: last ? last.total : 0 };
+    [...rows.values()].sort((x, y) => (x.path.toLowerCase() < y.path.toLowerCase() ? -1 : 1)).forEach(({ path, before, after }) => {
+      if (before === after) return;   // added and removed again, or changed and changed back
+      const row = [path, before === null ? 'added' : after === null ? 'removed' : 'changed', before || '', after || ''], k = kindOf(path);
+      if (k === 'core' || k === 'config' || k === 'map') out[k].push(row); else (out.other[k] = out.other[k] || []).push(row);
+    });
+    return out;
+  }
+  function groupOf(list) {
+    const g = { idx: 'g' + synth.size, list, diff: netDiff(list), file_diff: netFiles(list), counts: list[list.length - 1].counts };
+    synth.set(g.idx, g); return g;
+  }
+  const rowHtml = (n, q, opts) => `<div class="row"><div class="rail" style="--c: var(--l-${n.thread})">${esc(day(n.time))}</div>${card(n, q, opts)}</div>`;
+  // One card for a run of quiet builds: its first and last build, how many, the lanes they came from, and what changed in all of them.
+  // "Show builds" opens the run's own cards underneath.
+  function foldHtml(g) {
+    const first = g.list[0], last = g.list[g.list.length - 1], nb = g.list.length;
+    const bs = g.list.map(n => parseInt(n.build, 10)).filter(Number.isFinite), lo = Math.min(...bs), hi = Math.max(...bs);
+    const lanes = [...new Set(g.list.map(platform))].filter(Boolean).map(p => `<span class="pt${p === 'SteamPipe' || p === 'Steam2' ? ' inv' : ''}" style="--c: var(--l-${PT_COLOR[p] || first.thread})">${esc(p)}</span>`).join('');
+    const ch = counts(g.diff), fc = g.file_diff ? fileCounts(g.file_diff) : null;
+    // every build of the run by its number, with its own tag (update 94 ...) when the number repeats, so two builds with one number both show
+    const names = g.list.map(n => { const t = (n.label || '').split(' · ')[1]; return t ? `${n.build} (${t})` : String(n.build); });
+    const rail = `<div class="rail" style="--c: var(--l-${first.thread})">${esc(day(first.time))}${day(last.time) !== day(first.time) ? `<small>to ${esc(day(last.time))}</small>` : ''}</div>`;
+    return `<div class="fold">
+      <div class="row">${rail}<div class="card foldcard" style="--c: var(--l-${first.thread})">
+        <div class="l1"><span class="title">${!bs.length ? `${nb} builds` : lo === hi ? `Build ${lo}` : `Builds ${lo} – ${hi}`}</span><span class="date inl">${esc(day(first.time))}</span><span class="pname">${nb} builds, identical cvars and commands</span><span class="end">${lanes}</span></div>
+        <div class="l3"><div class="body">
+          <div class="l2 stack">${toggle(g, 'cv', 'CVAR', g.counts[0], ch.cv)}${toggle(g, 'cm', 'CMDS', g.counts[1], ch.cm)}${fc ? toggle(g, 'fi', 'FILE', g.file_diff.total, fc) : ''}</div>
+          <div class="foldbuilds"><b>${nb} builds:</b> ${names.map(esc).join(' · ')}</div>
+        </div><span class="end"><button class="btn" data-fold="${g.idx}" aria-expanded="false" title="Show each of the ${nb} builds as its own card">Show ${nb} builds</button></span></div>
+      </div></div>
+      <div class="foldrows" hidden></div></div>`;
+  }
+  function toggleFold(b) {
+    const wrap = b.closest('.fold'), rows = wrap.querySelector('.foldrows'), g = synth.get(b.dataset.fold), open = rows.hidden;
+    if (open && !rows.innerHTML) rows.innerHTML = g.list.map(n => rowHtml(n, $('q').value.trim(), { quiet: true })).join('');
+    rows.hidden = !open; b.setAttribute('aria-expanded', open); b.textContent = `${open ? 'Hide' : 'Show'} ${g.list.length} builds`;
+    wrap.querySelector('.foldcard').classList.toggle('open', open);
+  }
+
+  const intOf = el => { const v = parseInt(el.value, 10); return Number.isFinite(v) ? v : null; };
+  function render() {
+    const q = $('q').value.trim();
+    let vis = nodes.filter(n => shown[n.thread] && (!PARENT[n.thread] || shown[PARENT[n.thread]]) && (n.dumped || $('missing').checked));
+    // build range: either end can stay empty; the ends swap if they were typed the wrong way round
+    let lo = intOf($('bFrom')), hi = intOf($('bTo'));
+    if (lo !== null && hi !== null && lo > hi) [lo, hi] = [hi, lo];
+    if (lo !== null || hi !== null) vis = vis.filter(n => { const b = parseInt(n.build, 10); return Number.isFinite(b) && (lo === null || b >= lo) && (hi === null || b <= hi); });
+    // milestones go with the builds around them: builds count days since 24 Oct 1996, so a range that starts at build N leaves out the milestones before that day
+    const from = lo === null ? '' : new Date(Date.UTC(1996, 9, 24) + lo * 864e5).toISOString().slice(0, 10);
+    const ms = [...(D.milestones || [])].filter(m => m.time >= from).sort((a, b) => a.time.localeCompare(b.time));
+    // runs of quiet builds become one block each; a lone quiet build stays a card, drawn dashed. A run never crosses a year or a milestone.
+    synth.clear();
+    const items = []; let run = [];
+    const flush = () => { if (run.length > 1) items.push({ g: groupOf(run) }); else if (run.length) items.push({ n: run[0], quiet: true }); run = []; };
+    const apart = (a, b) => day(a.time).slice(0, 4) !== day(b.time).slice(0, 4) || ms.some(m => m.time > day(a.time) && m.time <= day(b.time));
+    vis.forEach(n => {
+      const quiet = $('quiet').checked && n.dumped && engineQuiet(n) && !track(n, q)?.changed;
+      if (quiet && run.length && apart(run[run.length - 1], n)) flush();
+      if (quiet) run.push(n); else { flush(); items.push({ n }); }
+    });
+    flush();
+    // days since the item just above on the timeline (a block counts from its last build), shown as a small row between the two
+    let prevT; const gap = new Map();
+    items.forEach(it => {
+      const a = it.g ? it.g.list[0] : it.n, z = it.g ? it.g.list[it.g.list.length - 1] : it.n, t = Date.parse(day(a.time)), e = Date.parse(day(z.time));
+      if (prevT !== undefined && !isNaN(t)) gap.set(it, Math.round((t - prevT) / 864e5));
+      if (!isNaN(e)) prevT = e;
+    });
+    const later = d => `${d.toLocaleString('en')} day${d === 1 ? '' : 's'} later`;
+    let html = '', year = '', m = 0;
+    items.forEach(it => {
+      const n = it.g ? it.g.list[0] : it.n, y = (n.time || '').slice(0, 4), g = gap.get(it);
+      // a milestone from an earlier year than this step stays in its own year, before the gap and year rows
+      while (m < ms.length && ms[m].time <= day(n.time) && ms[m].time.slice(0, 4) < y) { html += milestoneHtml(ms[m]); m++; }
+      if (g >= 1) html += `<div class="later">${later(g)}</div>`;
+      if (y !== year) { year = y; html += `<div class="year">${esc(y)}</div>`; }
+      // milestones (releases) go in front of the first step on or after their date
+      while (m < ms.length && ms[m].time <= day(n.time)) {
+        html += milestoneHtml(ms[m]); m++;
+      }
+      html += it.g ? foldHtml(it.g) : rowHtml(n, q, { quiet: it.quiet });
+    });
+    $('tl').innerHTML = html || '<p class="hint">No builds match. Widen the build range, clear the search or turn a lane back on.</p>';
+  }
+  // a static firework: rays and sparks around a centre, drawn once in two theme colours
+  function burst(c1, c2, seed) {
+    let s = '';
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2 + seed, r1 = 5, r2 = k % 2 ? 13 : 17;
+      const x1 = 20 + Math.cos(a) * r1, y1 = 20 + Math.sin(a) * r1, x2 = 20 + Math.cos(a) * r2, y2 = 20 + Math.sin(a) * r2;
+      s += `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="var(${k % 3 ? c1 : c2})" stroke-width="1.6" stroke-linecap="round"/>`;
+      s += `<circle cx="${(20 + Math.cos(a) * (r2 + 2.5)).toFixed(1)}" cy="${(20 + Math.sin(a) * (r2 + 2.5)).toFixed(1)}" r="1.1" fill="var(${c2})"/>`;
+    }
+    return `<svg class="fw" viewBox="0 0 40 40" aria-hidden="true">${s}<circle cx="20" cy="20" r="2.2" fill="var(${c1})"/></svg>`;
+  }
+  function milestoneHtml(x) {
+    const m = x.text.match(/^(\d{1,2} \w+ \d{4})\s*·\s*(.*)$/);   // "12 September 2003 · ..." the date moves to the rail
+    return `<div class="row"><div class="rail msr">${esc(x.time)}</div><div class="ms">${burst('--accent', '--l-beta', 0)}<div class="ms-t"><b>${esc(x.title)}</b><span>${esc(m ? m[2] : x.text)}</span></div></div></div>`;
+  }
+  function renderPacks() { $('packs').innerHTML = packs.map(n => card(n, '', { pack: true })).join(''); }
+
+  // Custom comparison of any two dumped builds, by cvar and command sets (file hashes only exist against a parent).
+  let picks = [];
+  function cmpDiff(a, b) {
+    const A = snapMaps[a.snap], B = snapMaps[b.snap];
+    const add = [], del = [], chg = [];
+    B.cv.forEach((c, k) => { const o = A.cv.get(k); if (!o) add.push([k, c[1]]); else if (o[1] !== c[1]) chg.push([k, o[1], c[1]]); });
+    A.cv.forEach((c, k) => { if (!B.cv.has(k)) del.push([k, c[1]]); });
+    return { cvar_added: add, cvar_removed: del, cvar_changed: chg,
+      cmd_added: [...B.cm].filter(x => !A.cm.has(x)), cmd_removed: [...A.cm].filter(x => !B.cm.has(x)) };
+  }
+  function cmpBar() {
+    let bar = $('cmpbar');
+    if (!picks.length) { bar?.remove(); document.querySelectorAll('.card.pick').forEach(c => c.classList.remove('pick')); return; }
+    if (!bar) { bar = document.createElement('div'); bar.id = 'cmpbar'; bar.className = 'cmpbar'; $('pageTimeline').appendChild(bar); }
+    const [a, b] = picks.map(i => all[i]);
+    let body = '';
+    if (b) {
+      const d = cmpDiff(a, b);
+      body = ` <span class="mc-sum">${nums([d.cvar_added.length + d.cmd_added.length, d.cvar_removed.length + d.cmd_removed.length, d.cvar_changed.length])}</span>
+        <button class="btn" id="cmpShow">Show differences</button>`;
+      bar._d = d;
+    }
+    bar.innerHTML = `<span><b>Compare</b> ${esc(a.label)} (${esc(day(a.time))})${b ? ` → <b>${esc(b.label)}</b> (${esc(day(b.time))})` : ' → pick a second build with Compare'}</span>${body}<button class="btn" id="cmpClear">Clear</button>`;
+    $('cmpClear').onclick = () => { picks = []; cmpBar(); };
+    if (b) $('cmpShow').onclick = () => {
+      const fake = { diff: bar._d };
+      $('dEyebrow').textContent = `Custom comparison`; $('dTitle').textContent = `${a.label} → ${b.label}`;
+      $('dFiles').innerHTML = '';
+      $('dList').innerHTML = `<div class="box"><div class="fgrp">Cvars</div>${listHtml(fake, 'cv')}<div class="fgrp">Commands</div>${listHtml(fake, 'cm')}</div>`;
+      $('dFoot').textContent = 'Cvars and commands only. Files can only be compared against a build\'s own parent.';
+      $('dq').parentElement.hidden = true; $('tabCvars').hidden = $('tabCmds').hidden = $('tabFiles').hidden = true;
+      $('scrim').hidden = false; $('drawer').hidden = false; $('dClose').focus();
+    };
+  }
+  function pickBuild(i) {
+    picks = picks.includes(i) ? picks.filter(x => x !== i) : [...picks, i].slice(-2);
+    document.querySelectorAll('[data-cmp]').forEach(b => b.closest('.card').classList.toggle('pick', picks.includes(+b.dataset.cmp)));
+    cmpBar();
+  }
+
+  function onClick(e) {
+    const b = e.target.closest('button'); if (!b) return;
+    if (b.dataset.copy !== undefined) {
+      const t = b.previousElementSibling.textContent;
+      try { navigator.clipboard.writeText(t); b.textContent = 'Copied'; setTimeout(() => { b.textContent = 'Copy'; }, 1200); } catch {}
+      return;
+    }
+    if (b.dataset.also !== undefined) {   // an "Identical to" chip: open the Install & source panel at that version
+      const card = b.closest('.card'), box = card.querySelector(`[data-box="src-${b.dataset.also}"]`);
+      if (box.hidden) card.querySelector('[data-src]').click();
+      const d = box.querySelector(`details[data-i="${b.dataset.i}"]`);
+      if (d) { d.open = true; d.scrollIntoView({ block: 'nearest' }); }
+      return;
+    }
+    if (b.dataset.cmp) return pickBuild(+b.dataset.cmp);
+    if (b.dataset.fold !== undefined) return toggleFold(b);
+    if (b.dataset.open) return openDrawer(all[+b.dataset.open]);
+    let key, html;
+    if (b.dataset.src) { key = 'src-' + b.dataset.src; html = () => sourceHtml(all[+b.dataset.src]); }
+    else if (b.dataset.tg) { key = b.dataset.tg + '-' + b.dataset.n; html = () => b.dataset.tg === 'fi' ? fileHtml(nodeOf(b.dataset.n)) : listHtml(nodeOf(b.dataset.n), b.dataset.tg); }
+    else return;
+    const box = b.closest('.card').querySelector(`[data-box="${key}"]`);
+    const open = box.hidden; if (open && !box.innerHTML) box.innerHTML = html();
+    box.hidden = !open; b.setAttribute('aria-expanded', open);
+  }
+  $('tl').addEventListener('click', onClick); $('packs').addEventListener('click', onClick);
+  // build range: the lowest and highest build this page holds are the placeholders, so an empty end means "no limit"
+  const buildNums = nodes.map(n => parseInt(n.build, 10)).filter(Number.isFinite);
+  const minBuild = buildNums.length ? Math.min(...buildNums) : '', maxBuild = buildNums.length ? Math.max(...buildNums) : '';
+  $('bFrom').placeholder = minBuild; $('bTo').placeholder = maxBuild;
+  $('range').title = `Only show builds in this range of build numbers. ${D.game} runs from build ${minBuild} to ${maxBuild}. Drag either handle, or type a build number; leave an end empty for no limit.`;
+  // slider: the track counts builds in order, one step each, because build numbers bunch up too much to be spaced by value
+  const sorted = [...new Set(buildNums)].sort((a, b) => a - b), N = sorted.length;
+  let li = 0, hiI = N - 1, last = 'rsHi', rsTimer;
+  const pct = i => (N > 1 ? i / (N - 1) * 100 : 0) + '%';
+  function paintSlider() {
+    $('rsLo').style.left = pct(li); $('rsHi').style.left = pct(hiI);
+    $('rsFill').style.left = pct(li); $('rsFill').style.right = (100 - parseFloat(pct(hiI))) + '%';
+    [['rsLo', li], ['rsHi', hiI]].forEach(([id, i]) => {
+      const h = $(id); h.setAttribute('aria-valuemin', sorted[0]); h.setAttribute('aria-valuemax', sorted[N - 1]);
+      h.setAttribute('aria-valuenow', sorted[i]); h.setAttribute('aria-valuetext', 'build ' + sorted[i]);
+      h.style.zIndex = id === last ? 2 : 1; h.classList.toggle('act', id === last);
+    });
+  }
+  function fromHandles() {   // an end sitting on the first or last build means "no limit", the same as an empty box
+    $('bFrom').value = li === 0 ? '' : sorted[li]; $('bTo').value = hiI === N - 1 ? '' : sorted[hiI];
+    paintSlider(); clearTimeout(rsTimer); rsTimer = setTimeout(render, 60);
+  }
+  function fromInputs() {
+    const lo = intOf($('bFrom')), hi = intOf($('bTo'));
+    const a = lo === null ? 0 : sorted.findIndex(b => b >= lo);
+    li = a < 0 ? N - 1 : a;
+    hiI = hi === null ? N - 1 : Math.max(0, sorted.map(b => b <= hi).lastIndexOf(true));
+    if (li > hiI) [li, hiI] = [hiI, li];
+    paintSlider();
+  }
+  if (N < 2) $('rs').hidden = true; else {
+    paintSlider();
+    const idxAt = x => { const r = $('rsRail').getBoundingClientRect(); return Math.round(Math.min(1, Math.max(0, (x - r.left) / r.width)) * (N - 1)); };
+    const move = (id, i) => { if (id === 'rsLo') li = Math.min(i, hiI); else hiI = Math.max(i, li); last = id; fromHandles(); };
+    let drag = null;
+    $('rs').addEventListener('pointerdown', e => {
+      const i = idxAt(e.clientX), onHandle = e.target.classList.contains('rs-h');
+      drag = onHandle ? e.target.id : (i <= li ? 'rsLo' : i >= hiI ? 'rsHi' : (i - li < hiI - i ? 'rsLo' : 'rsHi'));
+      $('rs').setPointerCapture(e.pointerId); $('rs').classList.add('drag'); $(drag).focus({ preventScroll: true });
+      if (onHandle) { last = drag; paintSlider(); } else move(drag, i);
+      e.preventDefault();
+    });
+    $('rs').addEventListener('pointermove', e => { if (drag) move(drag, idxAt(e.clientX)); });
+    const end = () => { drag = null; $('rs').classList.remove('drag'); };
+    $('rs').addEventListener('pointerup', end); $('rs').addEventListener('pointercancel', end);
+    $('rs').addEventListener('keydown', e => {
+      const id = e.target.id; if (id !== 'rsLo' && id !== 'rsHi') return;
+      const cur = id === 'rsLo' ? li : hiI;
+      const d = { ArrowLeft: -1, ArrowDown: -1, ArrowRight: 1, ArrowUp: 1, PageDown: -10, PageUp: 10 }[e.key];
+      const to = e.key === 'Home' ? 0 : e.key === 'End' ? N - 1 : d === undefined ? null : Math.min(N - 1, Math.max(0, cur + d));
+      if (to === null) return; move(id, to); e.preventDefault();
+    });
+  }
+  let bTimer; ['bFrom', 'bTo'].forEach(id => $(id).addEventListener('input', () => { fromInputs(); clearTimeout(bTimer); bTimer = setTimeout(render, 120); }));
+  let qTimer; $('q').addEventListener('input', () => { clearTimeout(qTimer); qTimer = setTimeout(render, 120); });
+  $('quiet').addEventListener('change', () => { store.set('quiet', $('quiet').checked); render(); });
+  $('missing').checked = store.get('missing', false);
+  $('missing').addEventListener('change', () => { store.set('missing', $('missing').checked); render(); });
+
+  function view(v) {
+    $('vTimeline').setAttribute('aria-selected', v === 'timeline'); $('vPacks').setAttribute('aria-selected', v === 'packs');
+    $('pageTimeline').hidden = v !== 'timeline'; $('pagePacks').hidden = v !== 'packs';
+    if (v === 'packs' && !$('packs').innerHTML) renderPacks();
+
+  }
+  $('vTimeline').onclick = () => view('timeline'); $('vPacks').onclick = () => view('packs');
+
+  let cur = null, tab = 'cvars';
+  const dqv = {};   // what each tab's filter box held: the tracked cvar pre-fills the cvar and command lists, not the file list
+  function openDrawer(n) {
+    $('dq').parentElement.hidden = false; $('tabCvars').hidden = $('tabCmds').hidden = $('tabFiles').hidden = false;
+    cur = n; $('dEyebrow').textContent = `${day(n.time)} · ${T[n.thread].name}`;
+    $('dTitle').textContent = n.label;
+    $('dFiles').innerHTML = [['protocol', n.protocol], ['exe version', n.exe_version], ['exe build', n.exe_build],
+      ...Object.entries(n.files || {}).map(([k, v]) => [k + ' md5', v])].filter(x => x[1]).map(([k, v]) => `<span>${esc(k)}</span><b>${esc(v)}</b>`).join('');
+    dqv.cvars = dqv.cmds = $('q').value.trim(); dqv.files = '';
+    setTab(tab, true);
+    $('scrim').hidden = false; $('drawer').hidden = false; $('dClose').focus();
+  }
+  function closeDrawer() { $('scrim').hidden = true; $('drawer').hidden = true; }
+  function setTab(t, fresh) {
+    if (!fresh) dqv[tab] = $('dq').value;
+    tab = t; $('dq').value = dqv[t] || '';
+    $('tabCvars').setAttribute('aria-selected', t === 'cvars'); $('tabCmds').setAttribute('aria-selected', t === 'cmds'); $('tabFiles').setAttribute('aria-selected', t === 'files'); list();
+  }
+
+  // A build's whole file list, rebuilt from the chain of differences it is stored as (n.fl, see build_site.attach_file_lists).
+  const fileCache = new Map();
+  function fileList(n) {   // Map: path number -> short sha256
+    if (!n.fl) return null;
+    let m = fileCache.get(n.idx); if (m) return m;
+    m = new Map(n.fl.b != null ? fileList(all[n.fl.b]) : []);
+    (n.fl.r || []).forEach(p => m.delete(p));
+    n.fl.a.forEach(([p, h]) => m.set(p, h));
+    fileCache.set(n.idx, m); return m;
+  }
+  const SCOPE_NOTE = {
+    install: 'This is every file of the install we ran, including what is inside its .pak archives.',
+    won: 'This is the WON base install (the GOTY disc) with this patch\'s files laid over it, including what is inside its .pak archives.',
+    steam2: 'Only this version\'s own depot is listed (the engine); the game content comes from other depots.',
+    steampipe: 'Only this update\'s own depots are listed (the engine and the Half-Life DLLs); the game content (maps, models, sounds) comes from depot 1, which we do not hold per update.',
+  };
+  let fg = {}, fchg = new Map();   // the open file list: [path, sha] by kind, and what changed since the parent build
+  function fileTable(k, everything) {
+    const rows = fg[k], cap = everything ? rows.length : 400;
+    return `<table class="ft"><tbody>${rows.slice(0, cap).map(([p, h]) => { const st = fchg.get(p.toLowerCase());
+      return `<tr class="${st === 'added' ? 'new' : ''}"><td>${esc(p)}${st === 'changed' ? ' <span class="n-c">~</span>' : ''}</td><td class="v">${esc(h)}</td></tr>`; }).join('')}</tbody></table>${
+      rows.length > cap ? `<button class="btn more" data-more="${esc(k)}">Show all ${rows.length.toLocaleString('en')}</button>` : ''}`;
+  }
+  function filesTab(f) {
+    const body = $('dList'), L = fileList(cur);
+    if (!L) { body.innerHTML = '<p class="hint">No file list for this build yet.</p>'; $('dFoot').textContent = ''; return; }
+    const was = new Set([...body.querySelectorAll('details.fk[open]')].map(d => d.dataset.k)), fresh = !body.querySelector('details.fk');
+    fchg = new Map(); if (cur.file_diff) fileRows(cur.file_diff).forEach(r => fchg.set(r[0].toLowerCase(), r[1]));
+    fg = {}; let found = 0;
+    L.forEach((sha, pi) => { const p = D.paths[pi]; if (f && !p.toLowerCase().includes(f)) return; const k = kindOf(p); (fg[k] = fg[k] || []).push([p, sha]); found++; });
+    Object.values(fg).forEach(rows => rows.sort((a, b) => (a[0].toLowerCase() < b[0].toLowerCase() ? -1 : 1)));
+    const st = (rows, s) => rows.filter(r => fchg.get(r[0].toLowerCase()) === s).length;
+    body.innerHTML = `<div class="box">${fkOrder(Object.keys(fg)).map(k => {
+      const rows = fg[k], open = fresh ? (k === 'core' && !f) || (!!f && rows.length <= 300) : was.has(k) || (!!f && rows.length <= 300);
+      return `<details class="fk" data-k="${esc(k)}"${open ? ' open' : ''}><summary><span class="fkl">${esc(fkTitle(k))}</span><span class="mc tot">${rows.length.toLocaleString('en')}</span>${
+        cell(st(rows, 'added'), 'n-a')}${cell(st(rows, 'changed'), 'n-c')}</summary><div class="fkb">${open ? fileTable(k) : ''}</div></details>`;
+    }).join('') || '<p class="hint">No file matches.</p>'}</div>`;
+    $('dFoot').textContent = `${found.toLocaleString('en')}${f ? ` of ${L.size.toLocaleString('en')}` : ''} files: the engine and the ${D.mod} folder. + = new since the build before it, ~ = changed. Hashes are the first 8 characters of sha256. ${SCOPE_NOTE[cur.fscope] || ''}`;
+  }
+  // a group's file table is built when it is opened, and in full only on request (a build has thousands of sounds)
+  $('dList').addEventListener('toggle', e => {
+    const d = e.target; if (tab === 'files' && d.open && d.dataset && d.dataset.k && !d.querySelector('table')) d.querySelector('.fkb').innerHTML = fileTable(d.dataset.k);
+  }, true);
+  $('dList').addEventListener('click', e => {
+    const b = e.target.closest('button[data-more]'); if (b) b.closest('details').querySelector('.fkb').innerHTML = fileTable(b.dataset.more, true);
+  });
+
+  function list() {
+    const s = D.snaps[cur.snap], f = $('dq').value.trim().toLowerCase();
+    const d = cur.diff || { cvar_added: [], cmd_added: [] };
+    const newCv = new Set(d.cvar_added.map(x => x[0])), newCm = new Set(d.cmd_added);
+    if (tab === 'files') {
+      filesTab(f);
+    } else if (tab === 'cvars') {
+      const rows = s.cvars.filter(c => !f || c[0].toLowerCase().includes(f));
+      $('dList').innerHTML = `<table><thead><tr><th>Cvar</th><th style="text-align:right">Default</th><th>Flags</th></tr></thead><tbody>${
+        rows.map(c => `<tr class="${newCv.has(c[0]) ? 'new' : ''}"><td>${esc(c[0])}</td><td class="v">${esc(c[1])}</td><td class="f">${esc(c[2])}</td></tr>`).join('')}</tbody></table>`;
+      $('dFoot').textContent = `${rows.length} of ${s.cvars.length} cvars, after loading the start map. Values are numbers only: cvarlist prints text cvars as 0. Green = new in this step. Flags: a = saved to config, sv = server, i = user info.`;
+    } else {
+      const rows = s.cmds.filter(c => !f || c.toLowerCase().includes(f));
+      $('dList').innerHTML = `<table><thead><tr><th>Command</th></tr></thead><tbody>${
+        rows.map(c => `<tr class="${newCm.has(c) ? 'new' : ''}"><td>${esc(c)}</td></tr>`).join('')}</tbody></table>`;
+      $('dFoot').textContent = `${rows.length} of ${s.cmds.length} commands. The game's cmdlist cuts names at 16 characters; the full name is restored where the game files show it (vid_describemode may be vid_describemodes). Green = new in this step.`;
+    }
+  }
+  $('tabCvars').onclick = () => setTab('cvars'); $('tabCmds').onclick = () => setTab('cmds'); $('tabFiles').onclick = () => setTab('files');
+  $('dq').addEventListener('input', list); $('dClose').onclick = closeDrawer; $('scrim').onclick = closeDrawer;
+  document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('drawer').hidden) closeDrawer(); });
+
+  legend(); render();
+
+}
+document.getElementById('games').addEventListener('click', e => {
+  const a = e.target.closest('a[data-game]'); if (!a) return;
+  e.preventDefault(); switchGame(a.dataset.game);
+});
+let first = ALL.order[0];
+try { const g = localStorage.getItem('gst.game'); if (ALL.order.includes(g)) first = g; } catch {}
+if (ALL.order.includes(location.hash.slice(1))) first = location.hash.slice(1);
+start(first);
+</script>
+</body>
+</html>
